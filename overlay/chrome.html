@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TechBear — Chrome Overlay</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --cur: #00f5ff;
+  --font-hud:  'Orbitron', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
+  /* Layout transition speed */
+  --lt: 0.5s;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width:1920px; height:1080px;
+  background: transparent !important;
+  overflow: hidden;
+  font-family: var(--font-mono);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VIDEO FRAME CHROME
+   3×2 GRID LAYOUT — 1920×1080 canvas
+   ┌─────────────┬──────────────────┬───────────────┐
+   │   Avatar    │  Shared Content  │   Secondary   │
+   │   360×580   │    888×580       │   620×580     │
+   ├─────────────┼──────────────────┼───────────────┤
+   │  BearBits   │     Chat         │     Boss      │
+   │   360×454   │    888×454       │   620×454     │
+   └─────────────┴──────────────────┴───────────────┘
+   Margin: 20px outer · 6px gutter
+   OBS sources sit BELOW — these are decorative borders only.
+═══════════════════════════════════════════════════════════ */
+
+/* Grid constants (CSS vars for easy tweaking) */
+:root {
+  --m:  20px;   /* outer margin */
+  --g:  6px;    /* gutter */
+  --c1: 360px;  /* col 1 width */
+  --c2: 888px;  /* col 2 width */
+  --c3: 620px;  /* col 3 width */
+  --r1: 580px;  /* row 1 height */
+  --r2: 454px;  /* row 2 height */
+  /* Derived X positions */
+  --x1: 20px;
+  --x2: 386px;  /* 20 + 360 + 6 */
+  --x3: 1280px; /* 386 + 888 + 6 */
+  /* Derived Y positions */
+  --y1: 20px;
+  --y2: 606px;  /* 20 + 580 + 6 */
+}
+
+.vid-frame {
+  position: fixed;
+  z-index: 10;
+  border: 2px solid var(--cur);
+  box-shadow: 0 0 14px var(--cur), inset 0 0 6px rgba(0,0,0,0.4);
+  background: transparent;
+  transition:
+    left   var(--lt) cubic-bezier(0.4,0,0.2,1),
+    top    var(--lt) cubic-bezier(0.4,0,0.2,1),
+    right  var(--lt) cubic-bezier(0.4,0,0.2,1),
+    bottom var(--lt) cubic-bezier(0.4,0,0.2,1),
+    width  var(--lt) cubic-bezier(0.4,0,0.2,1),
+    height var(--lt) cubic-bezier(0.4,0,0.2,1),
+    opacity var(--lt) ease,
+    border-color var(--lt) ease,
+    box-shadow var(--lt) ease;
+  pointer-events: none;
+}
+.vid-frame.hidden { opacity:0; pointer-events:none; }
+
+.vid-frame .frame-label {
+  position: absolute; top:-28px; left:-2px;
+  background: rgba(0,0,0,0.88);
+  border: 1px solid var(--cur); border-bottom: none;
+  padding: 2px 14px;
+  font-family: var(--font-hud); font-size: 0.62rem;
+  letter-spacing: 0.22em; color: var(--cur);
+  text-shadow: 0 0 6px var(--cur); white-space: nowrap;
+  transition: border-color var(--lt), color var(--lt), text-shadow var(--lt);
+}
+.vid-frame::before, .vid-frame::after {
+  content:''; position:absolute; width:12px; height:12px;
+  border-color:var(--cur); border-style:solid;
+  transition: border-color var(--lt);
+}
+.vid-frame::before { top:-2px; left:-2px; border-width:2px 0 0 2px; }
+.vid-frame::after  { bottom:-2px; right:-2px; border-width:0 2px 2px 0; }
+
+/* ═══════════════════════════════════════════════
+   LAYOUT: full  (default — all 6 cells)
+═══════════════════════════════════════════════ */
+body.layout-full #frame-avatar    { left:var(--x1); top:var(--y1); width:var(--c1); height:var(--r1); }
+body.layout-full #frame-content   { left:var(--x2); top:var(--y1); width:var(--c2); height:var(--r1); }
+body.layout-full #frame-secondary { left:var(--x3); top:var(--y1); width:var(--c3); height:var(--r1); }
+body.layout-full #frame-bearbits  { left:var(--x1); top:var(--y2); width:var(--c1); height:var(--r2); }
+body.layout-full #frame-chat      { left:var(--x2); top:var(--y2); width:var(--c2); height:var(--r2); }
+body.layout-full #frame-boss      { left:var(--x3); top:var(--y2); width:var(--c3); height:var(--r2); }
+body.layout-full #frame-secondary { opacity:1; }
+
+/* ═══════════════════════════════════════════════
+   LAYOUT: content-merged
+   Content + Secondary collapse into one wide pane
+═══════════════════════════════════════════════ */
+body.layout-merged #frame-avatar    { left:var(--x1); top:var(--y1); width:var(--c1); height:var(--r1); }
+body.layout-merged #frame-content   { left:var(--x2); top:var(--y1); width:1514px; height:var(--r1); } /* 888+6+620 */
+body.layout-merged #frame-secondary { opacity:0; pointer-events:none; }
+body.layout-merged #frame-bearbits  { left:var(--x1); top:var(--y2); width:var(--c1); height:var(--r2); }
+body.layout-merged #frame-chat      { left:var(--x2); top:var(--y2); width:var(--c2); height:var(--r2); }
+body.layout-merged #frame-boss      { left:var(--x3); top:var(--y2); width:var(--c3); height:var(--r2); }
+
+/* ═══════════════════════════════════════════════
+   LAYOUT: no-boss
+   Boss hidden, chat expands right to fill
+═══════════════════════════════════════════════ */
+body.layout-no-boss #frame-avatar    { left:var(--x1); top:var(--y1); width:var(--c1); height:var(--r1); }
+body.layout-no-boss #frame-content   { left:var(--x2); top:var(--y1); width:var(--c2); height:var(--r1); }
+body.layout-no-boss #frame-secondary { left:var(--x3); top:var(--y1); width:var(--c3); height:var(--r1); }
+body.layout-no-boss #frame-bearbits  { left:var(--x1); top:var(--y2); width:var(--c1); height:var(--r2); }
+body.layout-no-boss #frame-chat      { left:var(--x2); top:var(--y2); width:1514px; height:var(--r2); } /* chat expands */
+body.layout-no-boss #frame-boss      { opacity:0; pointer-events:none; }
+
+/* ═══════════════════════════════════════════════
+   LAYOUT: vtuber-focus
+   Avatar expands full height left column (wider),
+   content/secondary/bearbits/chat/boss compress right
+═══════════════════════════════════════════════ */
+body.layout-vtuber-focus #frame-avatar    { left:var(--x1); top:var(--y1); width:580px; height:1040px; }
+body.layout-vtuber-focus #frame-content   { left:612px; top:var(--y1); width:668px; height:502px; }
+body.layout-vtuber-focus #frame-secondary { left:1286px; top:var(--y1); width:614px; height:502px; }
+body.layout-vtuber-focus #frame-bearbits  { left:612px; top:528px; width:340px; height:532px; }
+body.layout-vtuber-focus #frame-chat      { left:958px; top:528px; width:376px; height:532px; }
+body.layout-vtuber-focus #frame-boss      { left:1340px; top:528px; width:560px; height:532px; }
+
+/* ═══════════════════════════════════════════════
+   LAYOUT: screen-share
+   Screen share fills merged content area (top center+right)
+   Avatar stays left, BearBits/Chat/Boss stay in bottom row
+═══════════════════════════════════════════════ */
+body.layout-screen-share #frame-avatar      { left:var(--x1); top:var(--y1); width:var(--c1); height:var(--r1); }
+body.layout-screen-share #frame-content     { left:var(--x2); top:var(--y1); width:1514px; height:var(--r1); }
+body.layout-screen-share #frame-secondary   { opacity:0; pointer-events:none; }
+body.layout-screen-share #frame-bearbits    { left:var(--x1); top:var(--y2); width:var(--c1); height:var(--r2); }
+body.layout-screen-share #frame-chat        { left:var(--x2); top:var(--y2); width:var(--c2); height:var(--r2); }
+body.layout-screen-share #frame-boss        { left:var(--x3); top:var(--y2); width:var(--c3); height:var(--r2); }
+
+/* ═══════════════════════════════════════════════════════════
+   CHAT WINDOW
+═══════════════════════════════════════════════════════════ */
+#frame-chat {
+  overflow: hidden; display: flex; flex-direction: column;
+  border-color: rgba(0,245,255,0.35);
+  box-shadow: none;
+  background: rgba(0,0,0,0.72);
+}
+#frame-chat .frame-label { border-color:rgba(0,245,255,0.35); color:rgba(0,245,255,0.6); }
+#chat-messages {
+  flex:1; overflow:hidden; padding:8px 10px;
+  display:flex; flex-direction:column; justify-content:flex-end; gap:5px;
+}
+.chat-msg { font-size:0.78rem; line-height:1.4; animation:msgIn 0.3s ease; word-wrap:break-word; }
+.chat-msg .chatter {
+  font-family:var(--font-hud); font-weight:700; font-size:0.7rem;
+  letter-spacing:0.05em; margin-right:6px;
+}
+.chat-msg.bot-reply .chatter { color:#ff6a00 !important; }
+.chat-msg .msg-text { color:rgba(255,255,255,0.88); }
+
+/* ═══════════════════════════════════════════════════════════
+   EVENT BANNERS
+═══════════════════════════════════════════════════════════ */
+#event-stage {
+  position:fixed; left:890px; top:80px; width:480px;
+  z-index:30; display:flex; flex-direction:column; gap:12px; pointer-events:none;
+}
+.event-banner {
+  background:rgba(0,0,0,0.9); border-left:4px solid var(--cur);
+  border-top:1px solid rgba(255,255,255,0.08); border-bottom:1px solid rgba(255,255,255,0.08);
+  border-right:none; padding:12px 20px;
+  display:flex; align-items:center; gap:16px;
+  animation:bannerIn 0.4s cubic-bezier(0.22,1,0.36,1) both;
+  box-shadow: 0 0 20px rgba(0,0,0,0.7), -4px 0 16px var(--cur);
+}
+.event-banner.out { animation:bannerOut 0.35s ease forwards; }
+.event-icon { font-size:1.8rem; flex-shrink:0; }
+.event-type {
+  font-family:var(--font-hud); font-size:0.58rem; letter-spacing:0.35em;
+  color:var(--cur); text-transform:uppercase; text-shadow:0 0 6px var(--cur);
+}
+.event-name { font-family:var(--font-hud); font-size:1.05rem; font-weight:900; color:#fff; letter-spacing:0.06em; }
+.event-detail { font-size:0.78rem; color:rgba(255,255,255,0.6); margin-top:2px; }
+
+/* ═══════════════════════════════════════════════════════════
+   TTS INDICATOR
+═══════════════════════════════════════════════════════════ */
+#tts-indicator {
+  position:fixed; bottom:38px; right:20px; z-index:31; width:300px;
+  background:rgba(0,0,0,0.9); border-top:2px solid var(--cur);
+  padding:7px 12px; display:flex; align-items:center; gap:10px;
+  opacity:0; transition:opacity 0.25s; pointer-events:none;
+}
+#tts-indicator.speaking { opacity:1; }
+.tts-wave { display:flex; gap:3px; align-items:center; flex-shrink:0; }
+.tts-wave span { display:block; width:3px; background:var(--cur); border-radius:2px; animation:wave 0.6s ease-in-out infinite; }
+.tts-wave span:nth-child(1){height:8px;  animation-delay:0s;}
+.tts-wave span:nth-child(2){height:16px; animation-delay:0.1s;}
+.tts-wave span:nth-child(3){height:22px; animation-delay:0.2s;}
+.tts-wave span:nth-child(4){height:14px; animation-delay:0.15s;}
+.tts-wave span:nth-child(5){height:8px;  animation-delay:0.05s;}
+#tts-text { font-size:0.72rem; color:rgba(255,255,255,0.8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* ═══════════════════════════════════════════════════════════
+   CORNER CHROME
+═══════════════════════════════════════════════════════════ */
+.corner {
+  position:fixed; z-index:40; width:50px; height:50px;
+  border-color:var(--cur); border-style:solid; opacity:0.55;
+  transition:border-color var(--lt);
+}
+.corner.tl { top:12px; left:12px; border-width:2px 0 0 2px; }
+.corner.tr { top:12px; right:12px; border-width:2px 2px 0 0; }
+.corner.bl { bottom:32px; left:12px; border-width:0 0 2px 2px; }
+.corner.br { bottom:32px; right:12px; border-width:0 2px 2px 0; }
+
+/* ═══════════════════════════════════════════════════════════
+   TICKER
+═══════════════════════════════════════════════════════════ */
+.ticker-wrap {
+  position:fixed; bottom:0; left:0; right:0; z-index:40;
+  background:rgba(0,0,0,0.88); border-top:1.5px solid var(--cur);
+  padding:6px 0; overflow:hidden; height:32px;
+  transition: border-color var(--lt);
+}
+.ticker-track { display:flex; white-space:nowrap; animation:ticker 35s linear infinite; }
+.ticker-item { font-size:0.7rem; letter-spacing:0.18em; color:var(--cur); text-shadow:0 0 5px var(--cur); padding:0 60px; }
+.ticker-item::before { content:'▶  '; opacity:0.5; }
+
+/* ═══════════════════════════════════════════════════════════
+   LAYOUT INDICATOR (top center, shows active layout name)
+═══════════════════════════════════════════════════════════ */
+#layout-indicator {
+  position:fixed; top:14px; left:50%; transform:translateX(-50%);
+  z-index:41; font-family:var(--font-hud); font-size:0.58rem;
+  letter-spacing:0.3em; color:rgba(0,245,255,0.4);
+  text-transform:uppercase; pointer-events:none;
+  transition:color var(--lt);
+}
+#layout-indicator.flash { color:rgba(0,245,255,0.9); }
+
+/* ═══════════════════════════════════════════════════════════
+   DAD JOKE WIDGET
+   Full-width pop-up, center stage. Setup fades in first,
+   then punchline drops after a beat.
+═══════════════════════════════════════════════════════════ */
+#dadjoke-widget {
+  position: fixed;
+  left: 50%; bottom: 90px;
+  transform: translateX(-50%);
+  z-index: 35;
+  width: 900px;
+  background: rgba(0,0,0,0.92);
+  border: 2px solid var(--cur);
+  box-shadow: 0 0 30px var(--cur), 0 0 80px rgba(0,245,255,0.12);
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  overflow: hidden;
+}
+#dadjoke-widget.visible { opacity: 1; }
+
+.dj-header {
+  background: var(--cur);
+  padding: 5px 20px;
+  display: flex; align-items: center; gap: 10px;
+}
+.dj-header-icon { font-size: 1rem; }
+.dj-header-label {
+  font-family: var(--font-hud); font-weight: 900;
+  font-size: 0.65rem; letter-spacing: 0.35em;
+  color: #000; text-transform: uppercase;
+}
+.dj-header-user {
+  font-family: var(--font-mono); font-size: 0.65rem;
+  color: rgba(0,0,0,0.65); margin-left: auto;
+  letter-spacing: 0.1em;
+}
+
+.dj-body { padding: 16px 24px 20px; }
+
+.dj-setup {
+  font-family: var(--font-hud);
+  font-size: clamp(0.9rem, 1.4vw, 1.15rem);
+  color: rgba(255,255,255,0.75);
+  line-height: 1.5; letter-spacing: 0.03em;
+  min-height: 1.5em;
+}
+.dj-punchline {
+  font-family: var(--font-hud); font-weight: 900;
+  font-size: clamp(1rem, 1.8vw, 1.45rem);
+  color: #fff; line-height: 1.4;
+  letter-spacing: 0.03em;
+  margin-top: 10px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  text-shadow: 0 0 16px var(--cur);
+}
+.dj-punchline.revealed { opacity: 1; transform: none; }
+
+/* Single-line joke (no setup) */
+.dj-punchline.no-setup { margin-top: 0; }
+
+/* ═══════════════════════════════════════════════════════════
+   SPOTIFY NOW PLAYING
+   Slim bar above the ticker, slides in when track changes.
+═══════════════════════════════════════════════════════════ */
+#spotify-bar {
+  position: fixed;
+  bottom: 32px; left: 0; right: 0;
+  z-index: 39;
+  height: 0; overflow: hidden;
+  background: rgba(0,0,0,0.9);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 20px;
+  transition: height 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+#spotify-bar.visible { height: 32px; }
+
+#spotify-art {
+  width: 22px; height: 22px;
+  border-radius: 2px;
+  object-fit: cover;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+#spotify-icon {
+  font-size: 0.85rem; flex-shrink: 0;
+  color: #1DB954; /* Spotify green */
+  filter: drop-shadow(0 0 4px #1DB954);
+}
+#spotify-track {
+  font-family: var(--font-mono); font-size: 0.72rem;
+  color: rgba(255,255,255,0.7); letter-spacing: 0.08em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#spotify-track strong {
+  color: #fff; font-weight: normal;
+  font-family: var(--font-hud); font-size: 0.68rem;
+}
+#spotify-progress-wrap {
+  flex: 1; height: 2px; background: rgba(255,255,255,0.1);
+  border-radius: 1px; overflow: hidden; flex-shrink: 0; max-width: 200px;
+}
+#spotify-progress-bar {
+  height: 100%; background: #1DB954;
+  transition: width 8s linear;
+  width: 0%;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════════════════════ */
+@keyframes bannerIn  { from{transform:translateX(-30px);opacity:0} to{transform:none;opacity:1} }
+@keyframes bannerOut { from{opacity:1} to{transform:translateX(-20px);opacity:0} }
+@keyframes msgIn     { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+@keyframes wave      { 0%,100%{transform:scaleY(0.5)} 50%{transform:scaleY(1.2)} }
+@keyframes ticker    { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+</style>
+</head>
+<body class="layout-full">
+
+<!-- Corner chrome -->
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+
+<!-- Layout indicator -->
+<div id="layout-indicator">◈ FULL LAYOUT</div>
+
+<!-- Video frame borders (transparent cutouts) -->
+<!-- ROW 1: Avatar | Content | Secondary -->
+<div class="vid-frame" id="frame-avatar">
+  <span class="frame-label">◈ AVATAR</span>
+</div>
+<div class="vid-frame" id="frame-content">
+  <span class="frame-label">◈ SHARED CONTENT</span>
+</div>
+<div class="vid-frame" id="frame-secondary">
+  <span class="frame-label">◈ SECONDARY CONTENT</span>
+</div>
+<!-- ROW 2: BearBits | Chat | Boss -->
+<div class="vid-frame" id="frame-bearbits">
+  <span class="frame-label">◈ BEAR-BITS CAM</span>
+</div>
+<div class="vid-frame" id="frame-chat">
+  <span class="frame-label">◈ CHAT</span>
+  <div id="chat-messages"></div>
+</div>
+<div class="vid-frame" id="frame-boss">
+  <span class="frame-label">◈ BOSS CAM</span>
+</div>
+
+<!-- Event banners -->
+<div id="event-stage"></div>
+
+<!-- Dad joke widget -->
+<div id="dadjoke-widget">
+  <div class="dj-header">
+    <span class="dj-header-icon">🐻</span>
+    <span class="dj-header-label">Dad Joke Mode Activated</span>
+    <span class="dj-header-user" id="dj-requester"></span>
+  </div>
+  <div class="dj-body">
+    <div class="dj-setup" id="dj-setup"></div>
+    <div class="dj-punchline" id="dj-punchline"></div>
+  </div>
+</div>
+
+<!-- Spotify now playing -->
+<div id="spotify-bar">
+  <span id="spotify-icon">♫</span>
+  <img id="spotify-art" src="" alt="" style="display:none">
+  <div id="spotify-track"><strong id="spotify-title">—</strong> &nbsp;·&nbsp; <span id="spotify-artist"></span></div>
+  <div id="spotify-progress-wrap">
+    <div id="spotify-progress-bar"></div>
+  </div>
+</div>
+
+<!-- TTS indicator -->
+<div id="tts-indicator">
+  <div class="tts-wave">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <div id="tts-text">Speaking...</div>
+</div>
+
+<!-- Ticker -->
+<div class="ticker-wrap">
+  <div class="ticker-track" id="tickerTrack"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+const CONFIG = {
+  relayUrl:        'ws://localhost:3333',   // bot relay (events + color)
+  obsWsUrl:        'ws://localhost:4455',   // OBS WebSocket v5
+  obsWsPassword:   '',                      // set in OBS Tools > WebSocket Server
+  chatMax:         22,
+  eventDuration:   6000,
+  ttsRate:         0.92,
+  ttsPitch:        0.85,
+  ttsVolume:       1.0,
+  ttsVoiceName:    '',
+  readChat:        true,
+  colorCycleMs:    5000,
+};
+
+// ═══════════════════════════════════════════════════════════
+// PALETTE
+// ═══════════════════════════════════════════════════════════
+const PALETTE     = ['#00f5ff','#ff00ff','#bf00ff','#39ff14','#ff6a00','#ff1493','#00ffbf'];
+const CHAT_COLORS = ['#00f5ff','#ff00ff','#39ff14','#ff6a00','#ff1493','#bf00ff','#ffff00'];
+let palIdx = 0;
+
+function setColor(hex) {
+  document.documentElement.style.setProperty('--cur', hex);
+}
+setInterval(() => { palIdx = (palIdx+1) % PALETTE.length; setColor(PALETTE[palIdx]); }, CONFIG.colorCycleMs);
+setColor(PALETTE[0]);
+
+// ═══════════════════════════════════════════════════════════
+// LAYOUT SYSTEM
+// ═══════════════════════════════════════════════════════════
+const LAYOUTS = {
+  'full':          { label: 'FULL LAYOUT',         cls: 'layout-full' },
+  'no-boss':       { label: 'NO BOSS CAM',          cls: 'layout-no-boss' },
+  'vtuber-focus':  { label: 'VTUBER FOCUS',         cls: 'layout-vtuber-focus' },
+  'screen-share':  { label: 'SCREEN SHARE',         cls: 'layout-screen-share' },
+  'merged':        { label: 'CONTENT MERGED',        cls: 'layout-merged' },
+};
+let currentLayout = 'full';
+
+function setLayout(name) {
+  if (!LAYOUTS[name] || name === currentLayout) return;
+  const body = document.body;
+  // Remove all layout classes
+  Object.values(LAYOUTS).forEach(l => body.classList.remove(l.cls));
+  body.classList.add(LAYOUTS[name].cls);
+  currentLayout = name;
+  // Flash the indicator
+  const ind = document.getElementById('layout-indicator');
+  ind.textContent = '◈ ' + LAYOUTS[name].label;
+  ind.classList.add('flash');
+  setTimeout(() => ind.classList.remove('flash'), 1500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// OBS WEBSOCKET v5 — listens for scene switches, relays minor tweaks
+// ═══════════════════════════════════════════════════════════
+// Scene name → layout mapping. Name your OBS scenes to match.
+const SCENE_LAYOUT_MAP = {
+  'Full Layout':        'full',
+  'No Boss Cam':        'no-boss',
+  'VTuber Focus':       'vtuber-focus',
+  'Screen Share':       'screen-share',
+  'Content Merged':     'merged',
+};
+
+let obsWs, obsReqId = 1, obsIdentified = false;
+
+function connectOBS() {
+  obsWs = new WebSocket(CONFIG.obsWsUrl);
+
+  obsWs.onopen = () => console.log('[OBS WS] Connected');
+
+  obsWs.onmessage = async (evt) => {
+    const msg = JSON.parse(evt.data);
+
+    // Handshake
+    if (msg.op === 0) {
+      // Hello — identify (with or without password)
+      const auth = msg.d.authentication;
+      let authStr = undefined;
+      if (auth && CONFIG.obsWsPassword) {
+        // OBS WS v5 auth: SHA256(password + salt) base64, then SHA256(result + challenge) base64
+        authStr = await buildOBSAuth(CONFIG.obsWsPassword, auth.salt, auth.challenge);
+      }
+      obsWs.send(JSON.stringify({
+        op: 1, d: {
+          rpcVersion: 1,
+          ...(authStr ? { authentication: authStr } : {}),
+          eventSubscriptions: 4 | 64, // scenes + scene items
+        }
+      }));
+    }
+
+    // Identified
+    if (msg.op === 2) {
+      obsIdentified = true;
+      console.log('[OBS WS] Identified — fetching current scene');
+      obsReq('GetCurrentProgramScene');
+    }
+
+    // Events
+    if (msg.op === 5) {
+      const { eventType, eventData } = msg.d;
+      if (eventType === 'CurrentProgramSceneChanged') {
+        const layout = SCENE_LAYOUT_MAP[eventData.sceneName];
+        if (layout) setLayout(layout);
+      }
+    }
+
+    // Request responses
+    if (msg.op === 7) {
+      if (msg.d.requestType === 'GetCurrentProgramScene') {
+        const layout = SCENE_LAYOUT_MAP[msg.d.responseData?.currentProgramSceneName];
+        if (layout) setLayout(layout);
+      }
+    }
+  };
+
+  obsWs.onclose = () => {
+    obsIdentified = false;
+    console.warn('[OBS WS] Disconnected — retry in 5s');
+    setTimeout(connectOBS, 5000);
+  };
+}
+
+function obsReq(type, data = {}) {
+  if (!obsIdentified) return;
+  obsWs.send(JSON.stringify({ op: 6, d: { requestType: type, requestId: String(obsReqId++), requestData: data } }));
+}
+
+async function buildOBSAuth(password, salt, challenge) {
+  const enc = new TextEncoder();
+  const hash1 = await crypto.subtle.digest('SHA-256', enc.encode(password + salt));
+  const b641  = btoa(String.fromCharCode(...new Uint8Array(hash1)));
+  const hash2 = await crypto.subtle.digest('SHA-256', enc.encode(b641 + challenge));
+  return btoa(String.fromCharCode(...new Uint8Array(hash2)));
+}
+
+connectOBS();
+
+// ═══════════════════════════════════════════════════════════
+// BOT RELAY WEBSOCKET
+// ═══════════════════════════════════════════════════════════
+let relayWs;
+function connectRelay() {
+  relayWs = new WebSocket(CONFIG.relayUrl);
+  relayWs.onmessage = (evt) => {
+    let msg; try { msg = JSON.parse(evt.data); } catch { return; }
+    handleEvent(msg);
+  };
+  relayWs.onclose = () => setTimeout(connectRelay, 3000);
+}
+
+function handleEvent(msg) {
+  switch (msg.type) {
+    case 'chat':      addChat(msg.username, msg.message, msg.isBotReply); break;
+    case 'follow':    showEvent('follow', msg.username); break;
+    case 'subscribe': showEvent('subscribe', msg.username, msg.tier ? `Tier ${msg.tier}` : ''); break;
+    case 'tip':       showEvent('tip', msg.username, msg.amount ? `Tipped $${msg.amount}` : ''); break;
+    case 'shoutout':  showEvent('shoutout', msg.username, msg.detail || ''); break;
+    case 'layout':    setLayout(msg.name); break;
+    case 'color':     if (msg.hex) setColor(msg.hex); break;
+    case 'ticker_update': if (msg.text) pushTicker(msg.text); break;
+    case 'dadjoke':       showDadJoke(msg); break;
+    case 'spotify':       updateSpotify(msg); break;
+    case 'spotify_track': updateSpotify(msg); break;
+  }
+}
+connectRelay();
+
+// ═══════════════════════════════════════════════════════════
+// TTS
+// ═══════════════════════════════════════════════════════════
+const synth = window.speechSynthesis;
+const ttsQ  = [];
+let ttsBusy = false;
+
+function getVoice() {
+  const voices = synth.getVoices();
+  if (CONFIG.ttsVoiceName) return voices.find(v => v.name.includes(CONFIG.ttsVoiceName)) || voices[0];
+  for (const n of ['Google UK English Male','Microsoft David','Alex','Fred']) {
+    const v = voices.find(v => v.name.includes(n));
+    if (v) return v;
+  }
+  return voices[0];
+}
+
+function speak(text, priority=false) {
+  if (priority) ttsQ.unshift(text); else ttsQ.push(text);
+  drainTTS();
+}
+
+function drainTTS() {
+  if (ttsBusy || !ttsQ.length) return;
+  ttsBusy = true;
+  const text = ttsQ.shift();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = CONFIG.ttsRate; u.pitch = CONFIG.ttsPitch; u.volume = CONFIG.ttsVolume;
+  const v = getVoice(); if (v) u.voice = v;
+  document.getElementById('tts-text').textContent = text;
+  document.getElementById('tts-indicator').classList.add('speaking');
+  u.onend = u.onerror = () => {
+    ttsBusy = false;
+    document.getElementById('tts-indicator').classList.remove('speaking');
+    drainTTS();
+  };
+  synth.speak(u);
+}
+
+// ═══════════════════════════════════════════════════════════
+// TTS SCRIPTS
+// ═══════════════════════════════════════════════════════════
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+const SCRIPTS = {
+  follow:    n => pick([
+    `Well honey, ${n} just followed! Welcome to the cave, sugar!`,
+    `Oh my stars — ${n} followed! Baby, you have excellent taste.`,
+    `${n}, welcome to Gymnarctos Studios, where the Wi-Fi is strong and the opinions are stronger.`,
+  ]),
+  subscribe: n => pick([
+    `${n} just subscribed! Oh, we are FANCY now! Thank you, gorgeous!`,
+    `Honey, ${n} subscribed! You didn't have to, but I am so glad you did!`,
+    `${n} is now a subscriber! That's what I call a power move, darling.`,
+  ]),
+  tip:    (n,a) => pick([
+    `${n} just tipped ${a}! Sugar, you are TOO kind. Mama's getting a latte!`,
+    `Oh! ${n} sent ${a}! Bless your generous little heart!`,
+    `${n} tipped ${a}! This goes straight into the server fund, darling!`,
+  ]),
+  shoutout: n => pick([
+    `Go check out ${n}! They are absolutely fabulous and you won't regret it!`,
+    `Shoutout to ${n}! Honey, go follow them right now — I mean it!`,
+    `Hey y'all, go show some love to ${n}! That's an order from TechBear!`,
+  ]),
+};
+
+// ═══════════════════════════════════════════════════════════
+// EVENT BANNERS
+// ═══════════════════════════════════════════════════════════
+const EVENT_DEFS = {
+  follow:    { icon:'⭐', label:'NEW FOLLOWER',   color:'#00f5ff' },
+  subscribe: { icon:'💎', label:'NEW SUBSCRIBER', color:'#ff00ff' },
+  tip:       { icon:'💰', label:'TIP RECEIVED',   color:'#39ff14' },
+  shoutout:  { icon:'📡', label:'SHOUTOUT',       color:'#ff6a00' },
+};
+
+function showEvent(type, name, detail='') {
+  const def = EVENT_DEFS[type] || { icon:'🔔', label:type.toUpperCase(), color:'#00f5ff' };
+  const stage = document.getElementById('event-stage');
+  const el = document.createElement('div');
+  el.className = 'event-banner';
+  el.style.cssText = `border-left-color:${def.color}; box-shadow:0 0 20px rgba(0,0,0,0.7),-4px 0 16px ${def.color}`;
+  el.innerHTML = `
+    <div class="event-icon">${def.icon}</div>
+    <div class="event-body">
+      <div class="event-type" style="color:${def.color};text-shadow:0 0 6px ${def.color}">${def.label}</div>
+      <div class="event-name">${esc(name)}</div>
+      ${detail ? `<div class="event-detail">${esc(detail)}</div>` : ''}
+    </div>`;
+  stage.appendChild(el);
+  // TTS
+  if (type === 'follow')    speak(SCRIPTS.follow(name), true);
+  if (type === 'subscribe') speak(SCRIPTS.subscribe(name), true);
+  if (type === 'tip')       speak(SCRIPTS.tip(name, detail), true);
+  if (type === 'shoutout')  speak(SCRIPTS.shoutout(name), true);
+  // Flash color
+  const colors = { follow:'#00f5ff', subscribe:'#ff00ff', tip:'#39ff14', shoutout:'#ff6a00' };
+  if (colors[type]) setColor(colors[type]);
+  // Remove after duration
+  setTimeout(() => {
+    el.classList.add('out');
+    el.addEventListener('animationend', () => el.remove(), { once:true });
+  }, CONFIG.eventDuration);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHAT
+// ═══════════════════════════════════════════════════════════
+let chatColorMap = {}, chatColorIdx = 0;
+function userColor(u) {
+  if (!chatColorMap[u]) chatColorMap[u] = CHAT_COLORS[chatColorIdx++ % CHAT_COLORS.length];
+  return chatColorMap[u];
+}
+
+function addChat(username, message, isBotReply=false) {
+  const container = document.getElementById('chat-messages');
+  const color = isBotReply ? '#ff6a00' : userColor(username);
+  const el = document.createElement('div');
+  el.className = 'chat-msg' + (isBotReply ? ' bot-reply' : '');
+  el.innerHTML = `<span class="chatter" style="color:${color}">${esc(username)}</span><span class="msg-text">${esc(message)}</span>`;
+  container.appendChild(el);
+  while (container.children.length > CONFIG.chatMax) container.removeChild(container.firstChild);
+  if (CONFIG.readChat && !isBotReply) speak(`${username} says: ${message}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// TICKER
+// ═══════════════════════════════════════════════════════════
+const TICKS = [
+  'GYMNARCTOS STUDIOS LLC',
+  'TECH SUPPORT · WEB DEVELOPMENT · DIGITAL SERVICES',
+  'TWIN CITIES · MINNESOTA',
+  'FOLLOW & SUBSCRIBE',
+  'TIPS APPRECIATED',
+  'JOYSTICK.TV/TECHBEAR',
+];
+const tickerEl = document.getElementById('tickerTrack');
+[...TICKS,...TICKS].forEach(t => {
+  const s = document.createElement('span');
+  s.className = 'ticker-item'; s.textContent = t;
+  tickerEl.appendChild(s);
+});
+function pushTicker(text) {
+  const s = document.createElement('span');
+  s.className = 'ticker-item'; s.textContent = text;
+  tickerEl.prepend(s.cloneNode(true));
+}
+
+// ═══════════════════════════════════════════════════════════
+// UTIL
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// DAD JOKE WIDGET
+// ═══════════════════════════════════════════════════════════
+const DJ_DISPLAY_MS    = 12000;  // how long widget stays up
+const DJ_PUNCHLINE_MS  = 2800;   // pause before punchline drops
+let djTimer = null;
+
+function showDadJoke({ username, joke, setup, punchline }) {
+  clearTimeout(djTimer);
+  const widget     = document.getElementById('dadjoke-widget');
+  const setupEl    = document.getElementById('dj-setup');
+  const punchEl    = document.getElementById('dj-punchline');
+  const requesterEl= document.getElementById('dj-requester');
+
+  // Reset
+  punchEl.classList.remove('revealed', 'no-setup');
+  widget.classList.remove('visible');
+
+  requesterEl.textContent = `requested by ${username}`;
+
+  if (setup) {
+    setupEl.textContent  = setup;
+    punchEl.textContent  = punchline;
+  } else {
+    // No setup split — show everything as punchline, hide setup
+    setupEl.textContent = '';
+    punchEl.textContent = joke;
+    punchEl.classList.add('no-setup');
+  }
+
+  // Show widget
+  requestAnimationFrame(() => {
+    widget.classList.add('visible');
+    // Reveal punchline after pause
+    setTimeout(() => punchEl.classList.add('revealed'), setup ? DJ_PUNCHLINE_MS : 300);
+  });
+
+  // Also queue TTS: setup pause punchline
+  if (setup) {
+    speak(setup);
+    setTimeout(() => speak(punchline), DJ_PUNCHLINE_MS + 200);
+  } else {
+    speak(joke);
+  }
+
+  // Auto-dismiss
+  djTimer = setTimeout(() => {
+    widget.classList.remove('visible');
+  }, DJ_DISPLAY_MS);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SPOTIFY NOW PLAYING
+// ═══════════════════════════════════════════════════════════
+let spotifyVisible = false;
+
+function updateSpotify(data) {
+  const bar      = document.getElementById('spotify-bar');
+  const titleEl  = document.getElementById('spotify-title');
+  const artistEl = document.getElementById('spotify-artist');
+  const artEl    = document.getElementById('spotify-art');
+  const progBar  = document.getElementById('spotify-progress-bar');
+
+  if (!data.playing) {
+    bar.classList.remove('visible');
+    spotifyVisible = false;
+    return;
+  }
+
+  titleEl.textContent  = data.title  || '—';
+  artistEl.textContent = data.artist || '';
+
+  if (data.art) {
+    artEl.src = data.art;
+    artEl.style.display = 'block';
+  } else {
+    artEl.style.display = 'none';
+  }
+
+  // Progress bar
+  if (data.duration && data.progress !== undefined) {
+    const pct = Math.min(100, (data.progress / data.duration) * 100);
+    progBar.style.width = pct + '%';
+  }
+
+  if (!spotifyVisible) {
+    bar.classList.add('visible');
+    spotifyVisible = true;
+  }
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+window.speechSynthesis.onvoiceschanged = () => {};
+</script>
+</body>
+</html>

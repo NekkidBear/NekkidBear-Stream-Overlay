@@ -1,0 +1,17 @@
+{
+  "name": "techbear-bot",
+  "version": "1.0.0",
+  "description": "TechBear stream bot for Joystick.tv — event relay, chat integration",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "NODE_ENV=development node src/index.js"
+  },
+  "dependencies": {
+    "ws": "^8.17.0",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": { "node": ">=18.0.0" }
+}

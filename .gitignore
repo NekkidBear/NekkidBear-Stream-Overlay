@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────────
+# Techbear Stream Overlay — .gitignore
+# ─────────────────────────────────────────────────────────────────
+
+# ── Secrets — NEVER commit these ─────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Node ──────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# ── OS junk ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor / IDE ──────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# ── Logs & runtime ────────────────────────────────────────────────
+*.log
+logs/
+pids/
+*.pid
+
+# ── Build / dist (if added later) ────────────────────────────────
+dist/
+build/
+out/
