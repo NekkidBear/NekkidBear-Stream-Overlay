@@ -9,6 +9,21 @@ import readline from 'readline';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import { spawn } from 'child_process';
+
+// spawn the bot relay (npm start) in a subprocess; returns the ChildProcess
+function startBot() {
+  console.log('starting bot relay (npm start) ...');
+  const proc = spawn('npm', ['start'], { cwd: path.resolve(process.cwd(), 'bot'), stdio: 'inherit' });
+  proc.on('exit', (code) => console.log(`bot relay exited with code ${code}`));
+  return proc;
+}
+
+function stopBot(proc) {
+  if (!proc || proc.killed) return;
+  console.log('stopping bot relay');
+  proc.kill();
+}
 
 // start a minimal static file server serving the overlay/ directory
 function startStaticServer(port = 8000) {
@@ -58,6 +73,9 @@ const tests = [
 ];
 
 async function run() {
+  // spawn bot relay so tests can run without manual startup
+  const botProc = startBot();
+
   // bring up the overlay server so the pages load in the browser
   const server = await startStaticServer(8000);
   console.log('static server running at http://localhost:8000');
@@ -87,6 +105,8 @@ async function run() {
 
   await stopServer(server);
   console.log('static server stopped');
+
+  stopBot(botProc);
 }
 
 run().catch(err => {
