@@ -69,6 +69,7 @@ function ask(question) {
 }
 
 const tests = [
+  {name:'chat-tts',    payload:{type:'chat', username:'tts',   message:'this is a text-to-speech test'}},
   {name:'chat-normal', payload:{type:'chat', username:'alice', message:'hello world'}},
   {name:'chat-link',   payload:{type:'chat', username:'bob',   message:'check this https://example.com'}},
   {name:'chat-bot',    payload:{type:'chat', username:'bot',   message:'bot reply', isBotReply:true}},
@@ -134,7 +135,11 @@ async function run() {
   for (const t of tests) {
     console.log(`\n==> sending test ${t.name}`);
     ws.send(JSON.stringify(t.payload));
-    const ans = await ask(`Did the overlay handle "${t.name}" correctly? (y/n/q=quit) `);
+    let prompt = `Did the overlay handle "${t.name}" correctly? (y/n/q=quit) `;
+    if (t.name === 'chat-tts') {
+      prompt = 'Did you hear the text spoken via TTS? (y/n/q=quit) ';
+    }
+    const ans = await ask(prompt);
     if (ans === 'q') break;
     if (ans !== 'y') failures.push(t.name);
   }
