@@ -17,6 +17,8 @@ export function connectRelay() {
 
   relayWs.onopen = () => {
     setChatStatus(true);
+    // notify the page that the relay is up so we can dismiss the init modal
+    window.dispatchEvent(new Event('relay-open'));
   };
 
   relayWs.onmessage = (evt) => {

@@ -72,6 +72,12 @@ const tests = [
   {name:'chat-normal', payload:{type:'chat', username:'alice', message:'hello world'}},
   {name:'chat-link',   payload:{type:'chat', username:'bob',   message:'check this https://example.com'}},
   {name:'chat-bot',    payload:{type:'chat', username:'bot',   message:'bot reply', isBotReply:true}},
+
+  // BDB command tests – overlay only needs to display the text, but include a
+  // follow-up 'bot' reply to mimic the real service behavior.
+  {name:'cmd-borg',    payload:{type:'chat', username:'Viewer', message:'!borg'}},
+  {name:'cmd-borg-reply', payload:{type:'chat', username:'BorgaliciousDivaBot', message:'We are TechBear...', isBotReply:true}},
+
   {name:'follow',      payload:{type:'follow', username:'Tester'}},
   {name:'subscribe',   payload:{type:'subscribe', username:'SubBot', tier:1}},
   {name:'tip',         payload:{type:'tip', username:'Generous', amount:5}},
@@ -132,6 +138,9 @@ async function run() {
     if (ans === 'q') break;
     if (ans !== 'y') failures.push(t.name);
   }
+
+  // stop the fake chat feed once our scripted events are done
+  stopChatStorm();
 
   console.log('\nTest sequence complete.');
   if (failures.length) {
