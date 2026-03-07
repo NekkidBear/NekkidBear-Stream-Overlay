@@ -12,7 +12,10 @@ function userColor(u) {
 
 export function addChat(username, message, isBotReply = false) {
   const container  = document.getElementById('chat-messages');
-  const isSystem   = username === '◈ SYSTEM';
+  // system messages are only explicit '◈ SYSTEM' entries or
+  // bot replies that look like errors (e.g. start with "error"/"warning").
+  const isSystem   = username === '◈ SYSTEM' ||
+                     (isBotReply && /^(error|warning)/i.test(message));
   const color      = isBotReply && !isSystem ? '#ff6a00' : userColor(username);
   const el         = document.createElement('div');
   el.className     = 'chat-msg'
@@ -22,7 +25,7 @@ export function addChat(username, message, isBotReply = false) {
   container.appendChild(el);
   while (container.children.length > CONFIG.chatMax) container.removeChild(container.firstChild);
 
-  if (CONFIG.readChat && !isBotReply && !isSystem) {
+  if (CONFIG.readChat && !isSystem) {
     const clean = sanitizeForTTS(message);
     if (clean && clean.length <= CONFIG.chatTtsMaxLen) {
       speak(`${username} says: ${clean}`);
