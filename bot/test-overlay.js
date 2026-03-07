@@ -35,7 +35,21 @@ function startStaticServer(port = 8000) {
         res.writeHead(404);
         return res.end('Not found');
       }
-      res.writeHead(200);
+
+      // Minimal MIME-type mapping so modules/css/scripts load correctly
+      const ext = path.extname(filePath).toLowerCase();
+      const types = {
+        '.html': 'text/html',
+        '.js':   'text/javascript',
+        '.mjs':  'text/javascript',
+        '.css':  'text/css',
+        '.png':  'image/png',
+        '.jpg':  'image/jpeg',
+        '.svg':  'image/svg+xml',
+        '.json': 'application/json',
+      };
+      const type = types[ext] || 'application/octet-stream';
+      res.writeHead(200, { 'Content-Type': type });
       res.end(data);
     });
   });
@@ -81,6 +95,31 @@ async function run() {
   console.log('static server running at http://localhost:8000');
 
   console.log('connecting to relay ws://localhost:3333 ...');
+
+  // sometimes the bot relay takes a moment to start and listen; retry until we can connect
+  async function waitForRelay(url = 'ws://localhost:3333', timeout = 5000) {
+    const start = Date.now();
+    while (true) {
+      try {
+        await new Promise((res, rej) => {
+          const tmp = new WebSocket(url);
+          tmp.on('open', () => {
+            tmp.close();
+            res();
+          });
+          tmp.on('error', rej);
+        });
+        return;
+      } catch (err) {
+        if (Date.now() - start > timeout) {
+          throw new Error(`relay did not become available within ${timeout}ms`);
+        }
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+  }
+
+  await waitForRelay();
   const ws = new WebSocket('ws://localhost:3333');
   await new Promise(res => ws.on('open', res));
   console.log('connected');

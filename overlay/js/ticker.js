@@ -5,7 +5,7 @@
 const TICKS = [
   'GYMNARCTOS STUDIOS LLC',
   'TECH SUPPORT · WEB DEVELOPMENT · DIGITAL SERVICES',
-  'TWIN CITIES · MINNESOTA',
+  // location removed per request – ticker should stay generic/public-facing
   'FOLLOW AND SUBSCRIBE',
   'TIPS APPRECIATED',
   'JOYSTICK.TV/TECHBEAR',
