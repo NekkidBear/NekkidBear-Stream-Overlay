@@ -1,4 +1,5 @@
 // entry point for overlay modules
+console.log('overlay: starting module initialization');
 import { startColorCycle } from './color.js';
 import { connectOBS } from './obs.js';
 import { connectRelay } from './relay.js';
