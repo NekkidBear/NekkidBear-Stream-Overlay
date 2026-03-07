@@ -23,6 +23,7 @@ export function addChat(username, message, isBotReply = false) {
     + (isSystem    ? ' system-entry' : '');
   el.innerHTML     = `<span class="chatter" style="color:${isSystem ? 'rgba(0,245,255,0.5)' : color}">${esc(username)}</span><span class="msg-text">${esc(message)}</span>`;
   container.appendChild(el);
+  console.log('[overlay] chat added', username, message, isBotReply);
   while (container.children.length > CONFIG.chatMax) container.removeChild(container.firstChild);
 
   if (CONFIG.readChat && !isSystem) {

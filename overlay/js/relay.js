@@ -35,6 +35,7 @@ export function connectRelay() {
 }
 
 function handleEvent(msg) {
+  console.log('[overlay] event received', msg);
   switch (msg.type) {
     case 'chat':
       addChat(msg.username, msg.message, msg.isBotReply);
