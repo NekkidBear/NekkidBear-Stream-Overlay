@@ -63,6 +63,8 @@ jt.on('tip',          (d) => handler.onTip(d));
 jt.on('wheelspin',    (d) => handler.onWheelspin(d));
 jt.on('stream_start', ()  => handler.onStreamStart());
 jt.on('stream_end',   ()  => handler.onStreamEnd());
+jt.on('user_enter',   (d) => handler.onUserEnter(d));
+jt.on('user_leave',   (d) => handler.onUserLeave(d));
 jt.on('connected',    ()  => {
   info('Connected to Joystick.tv ✓');
   // Inject send function now that channelId will be available

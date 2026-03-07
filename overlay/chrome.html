@@ -34,6 +34,7 @@ html, body {
    └─────────────┴──────────────────┴───────────────┘
    Margin: 20px outer · 6px gutter
    OBS sources sit BELOW — these are decorative borders only.
+   HIGH Z-INDEX to override Joystick.tv defaults
 ═══════════════════════════════════════════════════════════ */
 
 /* Grid constants (CSS vars for easy tweaking) */
@@ -56,7 +57,7 @@ html, body {
 
 .vid-frame {
   position: fixed;
-  z-index: 10;
+  z-index: 100;  /* Increased to override Joystick defaults */
   border: 2px solid var(--cur);
   box-shadow: 0 0 14px var(--cur), inset 0 0 6px rgba(0,0,0,0.4);
   background: transparent;
@@ -176,7 +177,8 @@ body.layout-screen-share #frame-boss        { left:var(--x3); top:var(--y2); wid
 ═══════════════════════════════════════════════════════════ */
 #event-stage {
   position:fixed; left:890px; top:80px; width:480px;
-  z-index:30; display:flex; flex-direction:column; gap:12px; pointer-events:none;
+  z-index:200;  /* Increased to override Joystick defaults */
+  display:flex; flex-direction:column; gap:12px; pointer-events:none;
 }
 .event-banner {
   background:rgba(0,0,0,0.9); border-left:4px solid var(--cur);
@@ -199,7 +201,7 @@ body.layout-screen-share #frame-boss        { left:var(--x3); top:var(--y2); wid
    TTS INDICATOR
 ═══════════════════════════════════════════════════════════ */
 #tts-indicator {
-  position:fixed; bottom:38px; right:20px; z-index:31; width:300px;
+  position:fixed; bottom:38px; right:20px; z-index:210; width:300px;
   background:rgba(0,0,0,0.9); border-top:2px solid var(--cur);
   padding:7px 12px; display:flex; align-items:center; gap:10px;
   opacity:0; transition:opacity 0.25s; pointer-events:none;
@@ -218,7 +220,7 @@ body.layout-screen-share #frame-boss        { left:var(--x3); top:var(--y2); wid
    CORNER CHROME
 ═══════════════════════════════════════════════════════════ */
 .corner {
-  position:fixed; z-index:40; width:50px; height:50px;
+  position:fixed; z-index:150; width:50px; height:50px;
   border-color:var(--cur); border-style:solid; opacity:0.55;
   transition:border-color var(--lt);
 }
@@ -231,7 +233,7 @@ body.layout-screen-share #frame-boss        { left:var(--x3); top:var(--y2); wid
    TICKER
 ═══════════════════════════════════════════════════════════ */
 .ticker-wrap {
-  position:fixed; bottom:0; left:0; right:0; z-index:40;
+  position:fixed; bottom:0; left:0; right:0; z-index:140;
   background:rgba(0,0,0,0.88); border-top:1.5px solid var(--cur);
   padding:6px 0; overflow:hidden; height:32px;
   transition: border-color var(--lt);
@@ -245,7 +247,7 @@ body.layout-screen-share #frame-boss        { left:var(--x3); top:var(--y2); wid
 ═══════════════════════════════════════════════════════════ */
 #layout-indicator {
   position:fixed; top:14px; left:50%; transform:translateX(-50%);
-  z-index:41; font-family:var(--font-hud); font-size:0.58rem;
+  z-index:160; font-family:var(--font-hud); font-size:0.58rem;
   letter-spacing:0.3em; color:rgba(0,245,255,0.4);
   text-transform:uppercase; pointer-events:none;
   transition:color var(--lt);
@@ -261,7 +263,7 @@ body.layout-screen-share #frame-boss        { left:var(--x3); top:var(--y2); wid
   position: fixed;
   left: 50%; bottom: 90px;
   transform: translateX(-50%);
-  z-index: 35;
+  z-index: 180;  /* Increased to override Joystick defaults */
   width: 900px;
   background: rgba(0,0,0,0.92);
   border: 2px solid var(--cur);
@@ -323,7 +325,7 @@ body.layout-screen-share #frame-boss        { left:var(--x3); top:var(--y2); wid
 #spotify-bar {
   position: fixed;
   bottom: 32px; left: 0; right: 0;
-  z-index: 39;
+  z-index: 170;  /* Increased to override Joystick defaults */
   height: 0; overflow: hidden;
   background: rgba(0,0,0,0.9);
   border-top: 1px solid rgba(255,255,255,0.08);
@@ -610,7 +612,12 @@ function handleEvent(msg) {
     case 'follow':    showEvent('follow', msg.username); break;
     case 'subscribe': showEvent('subscribe', msg.username, msg.tier ? `Tier ${msg.tier}` : ''); break;
     case 'tip':       showEvent('tip', msg.username, msg.amount ? `Tipped $${msg.amount}` : ''); break;
+    case 'wheelspin': showEvent('wheelspin', msg.username, msg.prize ? `Won ${msg.prize}` : ''); break;
     case 'shoutout':  showEvent('shoutout', msg.username, msg.detail || ''); break;
+    case 'stream_start': showEvent('stream_start', 'TechBear', 'Stream is now LIVE!'); break;
+    case 'stream_end':   showEvent('stream_end', 'TechBear', 'Stream ending - thanks for watching!'); break;
+    case 'user_enter':   showEvent('user_enter', msg.username, 'joined the stream'); break;
+    case 'user_leave':   showEvent('user_leave', msg.username, 'left the stream'); break;
     case 'layout':    setLayout(msg.name); break;
     case 'color':     if (msg.hex) setColor(msg.hex); break;
     case 'ticker_update': if (msg.text) pushTicker(msg.text); break;
@@ -630,34 +637,95 @@ let ttsBusy = false;
 
 function getVoice() {
   const voices = synth.getVoices();
-  if (CONFIG.ttsVoiceName) return voices.find(v => v.name.includes(CONFIG.ttsVoiceName)) || voices[0];
-  for (const n of ['Google UK English Male','Microsoft David','Alex','Fred']) {
-    const v = voices.find(v => v.name.includes(n));
+  if (!voices.length) {
+    console.warn('[TTS] No voices available');
+    return null;
+  }
+
+  // Try configured voice name first
+  if (CONFIG.ttsVoiceName) {
+    const named = voices.find(v => v.name.toLowerCase().includes(CONFIG.ttsVoiceName.toLowerCase()));
+    if (named) return named;
+  }
+
+  // Fallback preferences
+  const prefs = [
+    'Google UK English Male', 'Microsoft David', 'Alex', 'Fred',
+    'Google US English', 'Microsoft Zira', 'Samantha', 'Victoria'
+  ];
+
+  for (const pref of prefs) {
+    const v = voices.find(v => v.name.includes(pref));
     if (v) return v;
   }
+
+  // Last resort: first English voice
+  const english = voices.find(v => v.lang.startsWith('en'));
+  if (english) return english;
+
+  // Absolute fallback
   return voices[0];
 }
 
 function speak(text, priority=false) {
+  if (!text || !text.trim()) return;
+
   if (priority) ttsQ.unshift(text); else ttsQ.push(text);
   drainTTS();
 }
 
 function drainTTS() {
   if (ttsBusy || !ttsQ.length) return;
+
+  // Check if speech synthesis is available
+  if (!synth) {
+    console.warn('[TTS] Speech synthesis not available');
+    ttsQ.length = 0; // Clear queue
+    return;
+  }
+
   ttsBusy = true;
   const text = ttsQ.shift();
-  const u = new SpeechSynthesisUtterance(text);
-  u.rate = CONFIG.ttsRate; u.pitch = CONFIG.ttsPitch; u.volume = CONFIG.ttsVolume;
-  const v = getVoice(); if (v) u.voice = v;
-  document.getElementById('tts-text').textContent = text;
-  document.getElementById('tts-indicator').classList.add('speaking');
-  u.onend = u.onerror = () => {
+  console.log('[TTS] Speaking:', text);
+
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = CONFIG.ttsRate;
+    u.pitch = CONFIG.ttsPitch;
+    u.volume = CONFIG.ttsVolume;
+
+    const v = getVoice();
+    if (v) {
+      u.voice = v;
+      console.log('[TTS] Using voice:', v.name);
+    } else {
+      console.warn('[TTS] No suitable voice found');
+    }
+
+    document.getElementById('tts-text').textContent = text;
+    document.getElementById('tts-indicator').classList.add('speaking');
+
+    u.onstart = () => console.log('[TTS] Started speaking');
+    u.onend = () => {
+      console.log('[TTS] Finished speaking');
+      ttsBusy = false;
+      document.getElementById('tts-indicator').classList.remove('speaking');
+      drainTTS();
+    };
+    u.onerror = (e) => {
+      console.error('[TTS] Error:', e);
+      ttsBusy = false;
+      document.getElementById('tts-indicator').classList.remove('speaking');
+      drainTTS();
+    };
+
+    synth.speak(u);
+  } catch (e) {
+    console.error('[TTS] Exception:', e);
     ttsBusy = false;
     document.getElementById('tts-indicator').classList.remove('speaking');
     drainTTS();
-  };
-  synth.speak(u);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -680,10 +748,25 @@ const SCRIPTS = {
     `Oh! ${n} sent ${a}! Bless your generous little heart!`,
     `${n} tipped ${a}! This goes straight into the server fund, darling!`,
   ]),
+  wheelspin: (n,p) => pick([
+    `${n} just won ${p} on the wheel! Lucky duck!`,
+    `Oh honey, ${n} spun the wheel and got ${p}! That's fabulous!`,
+    `${n} won ${p}! The wheel has spoken, darling!`,
+  ]),
   shoutout: n => pick([
     `Go check out ${n}! They are absolutely fabulous and you won't regret it!`,
     `Shoutout to ${n}! Honey, go follow them right now — I mean it!`,
     `Hey y'all, go show some love to ${n}! That's an order from TechBear!`,
+  ]),
+  stream_start: () => pick([
+    `We are now LIVE, sugar! Resistance is futile!`,
+    `Stream starting! Welcome to the fabulous TechBear show!`,
+    `We're live, darling! Let's get this party started!`,
+  ]),
+  stream_end: () => pick([
+    `Stream ending, sugar. Thank you for watching!`,
+    `That's all for now, gorgeous! See you next time!`,
+    `Stream's wrapping up! You were all fabulous!`,
   ]),
 };
 
@@ -691,10 +774,15 @@ const SCRIPTS = {
 // EVENT BANNERS
 // ═══════════════════════════════════════════════════════════
 const EVENT_DEFS = {
-  follow:    { icon:'⭐', label:'NEW FOLLOWER',   color:'#00f5ff' },
-  subscribe: { icon:'💎', label:'NEW SUBSCRIBER', color:'#ff00ff' },
-  tip:       { icon:'💰', label:'TIP RECEIVED',   color:'#39ff14' },
-  shoutout:  { icon:'📡', label:'SHOUTOUT',       color:'#ff6a00' },
+  follow:      { icon:'⭐', label:'NEW FOLLOWER',   color:'#00f5ff' },
+  subscribe:   { icon:'💎', label:'NEW SUBSCRIBER', color:'#ff00ff' },
+  tip:         { icon:'💰', label:'TIP RECEIVED',   color:'#39ff14' },
+  wheelspin:   { icon:'🎡', label:'WHEEL WIN',      color:'#ff6a00' },
+  shoutout:    { icon:'📡', label:'SHOUTOUT',       color:'#ff1493' },
+  stream_start:{ icon:'🎬', label:'STREAM LIVE',    color:'#00ffbf' },
+  stream_end:  { icon:'🏁', label:'STREAM ENDING',  color:'#bf00ff' },
+  user_enter:  { icon:'👋', label:'WELCOME',        color:'#ffff00' },
+  user_leave:  { icon:'👋', label:'GOODBYE',        color:'#888888' },
 };
 
 function showEvent(type, name, detail='') {
@@ -711,19 +799,25 @@ function showEvent(type, name, detail='') {
       ${detail ? `<div class="event-detail">${esc(detail)}</div>` : ''}
     </div>`;
   stage.appendChild(el);
-  // TTS
-  if (type === 'follow')    speak(SCRIPTS.follow(name), true);
-  if (type === 'subscribe') speak(SCRIPTS.subscribe(name), true);
-  if (type === 'tip')       speak(SCRIPTS.tip(name, detail), true);
-  if (type === 'shoutout')  speak(SCRIPTS.shoutout(name), true);
+  // TTS (skip for user enter/leave to avoid spam)
+  if (type !== 'user_enter' && type !== 'user_leave') {
+    if (type === 'follow')      speak(SCRIPTS.follow(name), true);
+    if (type === 'subscribe')   speak(SCRIPTS.subscribe(name), true);
+    if (type === 'tip')         speak(SCRIPTS.tip(name, detail), true);
+    if (type === 'wheelspin')   speak(SCRIPTS.wheelspin(name, detail), true);
+    if (type === 'shoutout')    speak(SCRIPTS.shoutout(name), true);
+    if (type === 'stream_start') speak(SCRIPTS.stream_start(), true);
+    if (type === 'stream_end')   speak(SCRIPTS.stream_end(), true);
+  }
   // Flash color
-  const colors = { follow:'#00f5ff', subscribe:'#ff00ff', tip:'#39ff14', shoutout:'#ff6a00' };
+  const colors = { follow:'#00f5ff', subscribe:'#ff00ff', tip:'#39ff14', wheelspin:'#ff6a00', shoutout:'#ff1493', stream_start:'#00ffbf', stream_end:'#bf00ff' };
   if (colors[type]) setColor(colors[type]);
-  // Remove after duration
+  // Remove after duration (shorter for user events)
+  const duration = (type === 'user_enter' || type === 'user_leave') ? 3000 : CONFIG.eventDuration;
   setTimeout(() => {
     el.classList.add('out');
     el.addEventListener('animationend', () => el.remove(), { once:true });
-  }, CONFIG.eventDuration);
+  }, duration);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -869,7 +963,32 @@ function esc(s) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-window.speechSynthesis.onvoiceschanged = () => {};
+// Initialize TTS when voices are loaded
+let voicesLoaded = false;
+function initTTS() {
+  if (voicesLoaded) return;
+  const voices = synth.getVoices();
+  if (voices.length > 0) {
+    voicesLoaded = true;
+    console.log('[TTS] Voices loaded:', voices.length, 'available');
+    // Test TTS if needed
+    if (CONFIG.readChat) {
+      console.log('[TTS] Chat reading enabled');
+    }
+  }
+}
+
+// Handle voice loading
+if (synth.onvoiceschanged !== undefined) {
+  synth.onvoiceschanged = initTTS;
+} else {
+  // Fallback for browsers that don't support onvoiceschanged
+  setTimeout(initTTS, 100);
+  setTimeout(initTTS, 1000);
+}
+
+// Also try immediately in case voices are already loaded
+initTTS();
 </script>
 </body>
 </html>

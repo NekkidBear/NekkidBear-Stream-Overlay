@@ -172,6 +172,17 @@ export class EventHandler {
     this.relay.send('ticker_update', { text: `◈ STREAM ENDING ◈ THANK YOU ALL ◈ CLOSE SOME OF YOUR TABS ◈` });
   }
 
+  // ── User enter/leave ────────────────────────────────────────────
+  onUserEnter({ username }) {
+    this._log('USER ENTER:', username);
+    this.relay.send('user_enter', { username });
+  }
+
+  onUserLeave({ username }) {
+    this._log('USER LEAVE:', username);
+    this.relay.send('user_leave', { username });
+  }
+
   _log(...args) { if (this.dev) console.log('[EventHandler]', ...args); }
 }
 
